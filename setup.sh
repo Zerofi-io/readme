@@ -67,12 +67,19 @@ while true; do
   echo -n "Ethereum private key (0x...): "
   read -r -s PRIVATE_KEY </dev/tty
   echo ""
+  # Sanitize: remove any non-hex characters except 'x'
+  PRIVATE_KEY=$(echo "$PRIVATE_KEY" | tr -cd '0-9a-fA-Fx')
   if [ -z "$PRIVATE_KEY" ]; then
     echo "  ERROR: Private key is required."
     continue
   fi
   if [[ ! "$PRIVATE_KEY" =~ ^0x ]]; then
     PRIVATE_KEY="0x${PRIVATE_KEY}"
+  fi
+  # Validate length (should be 66 chars: 0x + 64 hex chars)
+  if [ ${#PRIVATE_KEY} -ne 66 ]; then
+    echo "  ERROR: Private key must be 64 hex characters (with 0x prefix)."
+    continue
   fi
   break
 done
