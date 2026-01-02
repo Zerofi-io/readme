@@ -16,7 +16,7 @@ Per node (one VPS):
 Run the setup script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/setup.sh | sudo bash
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/setup.sh)
 ```
 
 The script will:
@@ -24,11 +24,12 @@ The script will:
 2. Prompt for your Ethereum private key
 3. Prompt for RPC URL (or use default)
 4. Auto-detect your public IP
-5. Generate secure Monero wallet password
-6. Download docker-compose.yml
-7. Create systemd service
-8. Configure firewall
-9. Start all services
+5. Prompt for Monero daemon settings (or use defaults)
+6. Generate secure Monero wallet password
+7. Download docker-compose.yml
+8. Create systemd service
+9. Configure firewall
+10. Start all services
 
 ## Services
 
