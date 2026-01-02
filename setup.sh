@@ -42,20 +42,23 @@ if ! command -v docker &>/dev/null || file "$(which docker)" | grep -q "shell sc
   systemctl enable docker
   systemctl start docker
   echo "Docker installed successfully."
+  echo ""
 fi
 
-# Check for Docker Compose
+# Ensure Docker Compose is available
 if ! docker compose version &>/dev/null; then
   echo "Docker Compose not found. Installing..."
-  setup_docker_repo
+  apt-get update
   apt-get install -y docker-compose-plugin || {
-    echo "ERROR: Failed to install Docker Compose plugin"
-    exit 1
+    echo "Installing docker-compose standalone..."
+    curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/local/bin/docker-compose
+    chmod +x /usr/local/bin/docker-compose
+    ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
   }
   echo "Docker Compose installed successfully."
+  echo ""
 fi
 
-echo ""
 echo "=== Required Configuration ==="
 echo ""
 
@@ -75,7 +78,7 @@ done
 
 # Get RPC URL
 DEFAULT_RPC_URL="http://185.191.116.142:8547"
-read -r -p "Ethereum Sepolia RPC URL [press Enter for default]: " RPC_URL
+read -r -p "Ethereum Sepolia RPC URL [$DEFAULT_RPC_URL]: " RPC_URL
 RPC_URL="${RPC_URL:-$DEFAULT_RPC_URL}"
 
 # Get Public IP
@@ -93,8 +96,25 @@ else
   done
 fi
 
+echo ""
+echo "=== Monero Daemon Configuration ==="
+echo ""
+
+# Get Monero daemon address
+DEFAULT_MONERO_DAEMON="185.191.116.142:18081"
+read -r -p "Monero daemon address [$DEFAULT_MONERO_DAEMON]: " MONERO_DAEMON_ADDRESS
+MONERO_DAEMON_ADDRESS="${MONERO_DAEMON_ADDRESS:-$DEFAULT_MONERO_DAEMON}"
+
+# Get Monero daemon login
+DEFAULT_MONERO_LOGIN="zerofi:zerofi"
+read -r -p "Monero daemon login (user:pass) [$DEFAULT_MONERO_LOGIN]: " MONERO_DAEMON_LOGIN
+MONERO_DAEMON_LOGIN="${MONERO_DAEMON_LOGIN:-$DEFAULT_MONERO_LOGIN}"
+
 # Generate secure password for Monero wallet
 MONERO_WALLET_PASSWORD=$(openssl rand -hex 32)
+
+# Generate auth token
+BRIDGE_API_AUTH_TOKEN=$(openssl rand -hex 32)
 
 # Set install directory
 INSTALL_DIR="/opt/znode"
@@ -117,18 +137,39 @@ PUBLIC_IP=${PUBLIC_IP}
 
 # === Ethereum RPC ===
 RPC_URL=${RPC_URL}
+RPC_API_KEY=0c352d92ed1aa5d82b487c0908876f7ae8b0ed707aa0640aef767e77c0494f62
+CHAIN_ID=11155111
+CHAIN_NAME=sepolia
 
 # === Monero Configuration ===
 MONERO_WALLET_PASSWORD=${MONERO_WALLET_PASSWORD}
-MONERO_DAEMON_ADDRESS=185.191.116.142:18081
-MONERO_DAEMON_LOGIN=zerofi:zerofi
+MONERO_DAEMON_ADDRESS=${MONERO_DAEMON_ADDRESS}
+MONERO_DAEMON_LOGIN=${MONERO_DAEMON_LOGIN}
 MONERO_TRUST_DAEMON=0
 
-# === Bridge API ===
+# === P2P Configuration ===
+P2P_IMPL=libp2p
+P2P_BOOTSTRAP_FROM_CHAIN=1
+ENABLE_HEARTBEAT_ORACLE=1
+ENABLE_MULTI_CLUSTER_FORMATION=1
+ENABLE_HEARTBEAT_FILTERED_SELECTION=1
+ENFORCE_SELECTED_MEMBERS_P2P_VISIBILITY=1
+COOLDOWN_TO_NEXT_EPOCH_WINDOW=1
+HEARTBEAT_ONLINE_TTL_MS=300000
+HEARTBEAT_INTERVAL=30
+
+# === Bridge Configuration ===
+BRIDGE_ENABLED=1
+SWEEP_ENABLED=0
 BRIDGE_API_ENABLED=1
 BRIDGE_API_PORT=3002
-BRIDGE_API_AUTH_TOKEN=eb6a1d78440cf7aab806017a6b980ce6a624b4301853269e7636ba966ee3f7e5
-BRIDGE_API_TLS_ENABLED=1
+BRIDGE_API_BIND_IP=0.0.0.0
+BRIDGE_API_AUTH_TOKEN=${BRIDGE_API_AUTH_TOKEN}
+BRIDGE_API_TLS_ENABLED=0
+
+# === Cluster Aggregator ===
+CLUSTER_AGG_PORT=4000
+CLUSTER_AGG_NODE_AUTH_TOKEN=${BRIDGE_API_AUTH_TOKEN}
 
 # === Contract Addresses (Sepolia) ===
 REGISTRY_ADDR=0x6884ed007286999021E17B4a31C960fC53d0dB93
@@ -138,14 +179,17 @@ COORDINATOR_ADDR=0x15d0A8A12e37019409FC2cDd6eE1Bd72798Bf02e
 CONFIG_ADDR=0x5A82B5B011E0a6E016b5014C44a916AD9292f76f
 BRIDGE_ADDR=0x4d92DEFaA4e8eCff869fEEeB2F12591Fb4eE96C2
 
-# === Feature Flags ===
-BRIDGE_ENABLED=1
-SWEEP_ENABLED=0
-
 # === Round Configuration ===
 DEPOSIT_REQUEST_ROUND=9700
 MINT_SIGNATURE_ROUND=9800
 MULTISIG_SYNC_ROUND=9810
+
+# === Timing Configuration ===
+STALE_ROUND_MIN_AGE_MS=600000
+STICKY_QUEUE=0
+FORCE_SELECT=0
+TEST_MODE=0
+DRY_RUN=0
 ENVFILE
 
 chmod 600 "$INSTALL_DIR/.env"
@@ -154,7 +198,7 @@ echo "  Configuration written to $INSTALL_DIR/.env"
 # Download docker-compose.yml
 echo ""
 echo "=== Downloading Docker Compose File ==="
-curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/docker-compose.yml -o "$INSTALL_DIR/docker-compose.yml"
+curl -fsSL "https://raw.githubusercontent.com/Zerofi-io/readme/main/docker-compose.yml?$(date +%s)" -o "$INSTALL_DIR/docker-compose.yml"
 echo "  Downloaded docker-compose.yml"
 
 # Pull images
@@ -204,45 +248,53 @@ chmod +x "$INSTALL_DIR/stop"
 
 cat > "$INSTALL_DIR/logs" << 'LOGSEOF'
 #!/bin/bash
-cd /opt/znode && docker compose logs -f
+sudo journalctl -u znode -f
 LOGSEOF
 chmod +x "$INSTALL_DIR/logs"
 
-# Configure firewall
-echo ""
-echo "=== Configuring Firewall ==="
-if command -v ufw &> /dev/null; then
-  ufw allow 9000/tcp
-  echo "  Port 9000 opened for P2P."
+# Open firewall port if ufw is available
+if command -v ufw &>/dev/null; then
+  echo ""
+  echo "=== Configuring Firewall ==="
+  ufw allow 9000/tcp comment "ZNode P2P"
+  ufw allow 4000/tcp comment "ZNode Cluster Aggregator"
+  echo "  Opened ports 9000/tcp and 4000/tcp"
 else
-  echo "  ufw not found. Please manually open port 9000/tcp."
+  echo ""
+  echo "NOTE: ufw not found. Please manually open ports 9000/tcp and 4000/tcp."
 fi
 
-# Start the services
+# Start the service
 echo ""
 echo "=== Starting ZNode ==="
 systemctl start znode
 
-echo ""
-echo "============================================"
-echo "  Setup Complete!"
-echo "============================================"
-echo ""
-echo "ZNode is now running with 3 services:"
-echo "  - monero-wallet-rpc (Monero wallet)"
-echo "  - znode (main node)"
-echo "  - cluster-aggregator (cluster management)"
-echo ""
-echo "Commands:"
-echo "  Start:   sudo systemctl start znode"
-echo "  Stop:    sudo systemctl stop znode"
-echo "  Logs:    sudo journalctl -u znode -f"
-echo "  Status:  sudo systemctl status znode"
-echo ""
-echo "Or use helper scripts:"
-echo "  $INSTALL_DIR/start"
-echo "  $INSTALL_DIR/stop"
-echo "  $INSTALL_DIR/logs"
-echo ""
-echo "Configuration: $INSTALL_DIR/.env"
-echo ""
+# Wait for startup
+echo "  Waiting for services to start..."
+sleep 15
+
+# Check status
+if systemctl is-active --quiet znode; then
+  echo ""
+  echo "============================================"
+  echo "  Setup Complete!"
+  echo "============================================"
+  echo ""
+  echo "ZNode is now running with 3 services:"
+  echo "  - monero-wallet-rpc (Monero wallet management)"
+  echo "  - znode (Main node service)"
+  echo "  - cluster-aggregator (Cluster coordination)"
+  echo ""
+  echo "Commands:"
+  echo "  Start:   $INSTALL_DIR/start"
+  echo "  Stop:    $INSTALL_DIR/stop"
+  echo "  Logs:    $INSTALL_DIR/logs"
+  echo "  Status:  sudo systemctl status znode"
+  echo ""
+  echo "Configuration: $INSTALL_DIR/.env"
+  echo ""
+else
+  echo ""
+  echo "WARNING: ZNode may not have started correctly."
+  echo "Check logs with: sudo journalctl -u znode -n 50"
+fi
