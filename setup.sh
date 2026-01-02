@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+
+# Make apt fully noninteractive
+export DEBIAN_FRONTEND=noninteractive
 
 echo "============================================"
 echo "  ZNode v2.2.3 Setup"
@@ -12,32 +14,73 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
+wait_for_apt() {
+  # Try to recover if a previous install left dpkg half-configured
+  dpkg --configure -a >/dev/null 2>&1 || true
+
+  # Wait politely for background package jobs to finish
+  # (apt/apt-get/dpkg/unattended-upgrade)
+  local waited=0
+  local max_wait=600  # 10 minutes upper bound
+  while pgrep -x apt >/dev/null || \
+        pgrep -x apt-get >/dev/null || \
+        pgrep -x dpkg >/dev/null || \
+        pgrep -x unattended-upgrade >/dev/null; do
+    sleep 3
+    waited=$((waited+3))
+    [ $waited -ge $max_wait ] && break
+  done
+}
+
+apt_retry() {
+  # Usage: apt_retry update
+  #        apt_retry install pkg1 pkg2 ...
+  #        apt_retry remove pkg
+  local delay=3
+  local tries=15
+  local n=0
+  while :; do
+    wait_for_apt
+    # -y assumes yes, Use-Pty=0 avoids TTY issues in pipelines, Acquire::Retries retries downloads
+    if apt-get -y -o Dpkg::Use-Pty=0 -o Acquire::Retries=3 "$@"; then
+      return 0
+    fi
+    n=$((n+1))
+    if [ $n -ge $tries ]; then
+      echo "ERROR: apt-get $* failed after $tries attempts" >&2
+      return 1
+    fi
+    sleep "$delay"
+    [ $delay -lt 30 ] && delay=$((delay*2))  # exponential backoff up to 30s
+  done
+}
+
 # Remove podman-docker if present (it masquerades as docker)
 if dpkg -l podman-docker &>/dev/null; then
   echo "Removing podman-docker (conflicts with Docker)..."
-  apt-get remove -y podman-docker
+  apt_retry remove podman-docker
 fi
 
 # Setup Docker repository
 setup_docker_repo() {
   echo "Setting up Docker repository..."
-  apt-get update
-  apt-get install -y ca-certificates curl gnupg
+  apt_retry update
+  apt_retry install ca-certificates curl gnupg
   install -m 0755 -d /etc/apt/keyrings
   curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
   chmod a+r /etc/apt/keyrings/docker.gpg
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-  apt-get update
+  apt_retry update
 }
 
 # Check for real Docker (not podman wrapper)
 if ! command -v docker &>/dev/null || file "$(which docker)" | grep -q "shell script"; then
   echo "Docker not found or is podman wrapper. Installing Docker..."
   setup_docker_repo
-  apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin || {
+  apt_retry install docker-ce docker-ce-cli containerd.io docker-compose-plugin || {
     # Fallback to docker.io if docker-ce fails
     echo "docker-ce install failed, trying docker.io..."
-    apt-get install -y docker.io
+    apt_retry install docker.io
   }
   systemctl enable docker
   systemctl start docker
@@ -48,8 +91,8 @@ fi
 # Ensure Docker Compose is available
 if ! docker compose version &>/dev/null; then
   echo "Docker Compose not found. Installing..."
-  apt-get update
-  apt-get install -y docker-compose-plugin || {
+  apt_retry update
+  apt_retry install docker-compose-plugin || {
     echo "Installing docker-compose standalone..."
     curl -fsSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/local/bin/docker-compose
     chmod +x /usr/local/bin/docker-compose
