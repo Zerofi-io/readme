@@ -261,7 +261,10 @@ chmod +x "$INSTALL_DIR/stop"
 
 cat > "$INSTALL_DIR/logs" << 'LOGSEOF'
 #!/bin/bash
-sudo journalctl -u znode -f
+# Human-readable logs (no systemd timestamps or docker prefixes)
+cd /opt/znode || exit 1
+# Stream all service logs and strip the leading "<service>-1  | " noise
+docker compose logs -f 2>&1 | sed 's/^[a-z_-]*-1  | //'
 LOGSEOF
 chmod +x "$INSTALL_DIR/logs"
 
