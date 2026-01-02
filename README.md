@@ -31,6 +31,16 @@ The script will:
 9. Configure firewall
 10. Start all services
 
+## Update
+
+To update an existing installation:
+
+```bash
+sudo bash <(curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/update.sh)
+```
+
+This preserves your configuration and only updates the Docker images.
+
 ## Services
 
 ZNode runs 3 containers:
@@ -73,14 +83,6 @@ To edit:
 
 ```bash
 sudo nano /opt/znode/.env
-sudo systemctl restart znode
-```
-
-## Update
-
-```bash
-cd /opt/znode
-docker compose pull
 sudo systemctl restart znode
 ```
 
