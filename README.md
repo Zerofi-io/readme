@@ -5,7 +5,7 @@
 Run the setup script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Zerofi-io/znodev2.2.3/main/setup.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/setup.sh | sudo bash
 ```
 
 The script will:
