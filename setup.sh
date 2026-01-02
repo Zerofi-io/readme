@@ -12,28 +12,46 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-# Check for Docker
-if ! command -v docker &> /dev/null; then
-  echo "Docker not found. Installing Docker..."
-  curl -fsSL https://get.docker.com | sh
+# Remove podman-docker if present (it masquerades as docker)
+if dpkg -l podman-docker &>/dev/null; then
+  echo "Removing podman-docker (conflicts with Docker)..."
+  apt-get remove -y podman-docker
+fi
+
+# Setup Docker repository
+setup_docker_repo() {
+  echo "Setting up Docker repository..."
+  apt-get update
+  apt-get install -y ca-certificates curl gnupg
+  install -m 0755 -d /etc/apt/keyrings
+  curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor --yes -o /etc/apt/keyrings/docker.gpg
+  chmod a+r /etc/apt/keyrings/docker.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+  apt-get update
+}
+
+# Check for real Docker (not podman wrapper)
+if ! command -v docker &>/dev/null || file "$(which docker)" | grep -q "shell script"; then
+  echo "Docker not found or is podman wrapper. Installing Docker..."
+  setup_docker_repo
+  apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin || {
+    # Fallback to docker.io if docker-ce fails
+    echo "docker-ce install failed, trying docker.io..."
+    apt-get install -y docker.io
+  }
   systemctl enable docker
   systemctl start docker
   echo "Docker installed successfully."
 fi
 
 # Check for Docker Compose
-if ! docker compose version &> /dev/null; then
+if ! docker compose version &>/dev/null; then
   echo "Docker Compose not found. Installing..."
-  # Add Docker repository if not present
-  if [ ! -f /etc/apt/sources.list.d/docker.list ]; then
-    apt-get update
-    apt-get install -y ca-certificates curl gnupg
-    install -m 0755 -d /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-  fi
-  apt-get update && apt-get install -y docker-compose-plugin
+  setup_docker_repo
+  apt-get install -y docker-compose-plugin || {
+    echo "ERROR: Failed to install Docker Compose plugin"
+    exit 1
+  }
   echo "Docker Compose installed successfully."
 fi
 
