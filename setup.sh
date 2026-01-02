@@ -141,13 +141,13 @@ WorkingDirectory=$INSTALL_DIR
 ExecStartPre=-/usr/bin/docker stop znode
 ExecStartPre=-/usr/bin/docker rm znode
 ExecStart=/usr/bin/docker run --rm --name znode \\
-  --env-file $ENV_FILE \\
+  -v $ENV_FILE:/app/.env:ro \\
+  -v znode-data:/data \\
   -p 9000:9000 \\
   -p 3002:3002 \\
   -p 3003:3003 \\
   -p 4000:4000 \\
   -p 18083:18083 \\
-  -v znode-data:/data \\
   ghcr.io/zerofi-io/znodev2.2.3:latest
 ExecStop=/usr/bin/docker stop znode
 
