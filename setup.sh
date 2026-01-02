@@ -62,9 +62,10 @@ fi
 echo "=== Required Configuration ==="
 echo ""
 
-# Get Ethereum private key
+# Get Ethereum private key (read from /dev/tty for pipe compatibility)
 while true; do
-  read -r -s -p "Ethereum private key (0x...): " PRIVATE_KEY
+  echo -n "Ethereum private key (0x...): "
+  read -r -s PRIVATE_KEY </dev/tty
   echo ""
   if [ -z "$PRIVATE_KEY" ]; then
     echo "  ERROR: Private key is required."
@@ -78,17 +79,20 @@ done
 
 # Get RPC URL
 DEFAULT_RPC_URL="http://185.191.116.142:8547"
-read -r -p "Ethereum Sepolia RPC URL [$DEFAULT_RPC_URL]: " RPC_URL
+echo -n "Ethereum Sepolia RPC URL [$DEFAULT_RPC_URL]: "
+read -r RPC_URL </dev/tty
 RPC_URL="${RPC_URL:-$DEFAULT_RPC_URL}"
 
 # Get Public IP
 DEFAULT_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "")
 if [ -n "$DEFAULT_IP" ]; then
-  read -r -p "Public IP address [$DEFAULT_IP]: " PUBLIC_IP
+  echo -n "Public IP address [$DEFAULT_IP]: "
+  read -r PUBLIC_IP </dev/tty
   PUBLIC_IP="${PUBLIC_IP:-$DEFAULT_IP}"
 else
   while true; do
-    read -r -p "Public IP address: " PUBLIC_IP
+    echo -n "Public IP address: "
+    read -r PUBLIC_IP </dev/tty
     if [ -n "$PUBLIC_IP" ]; then
       break
     fi
@@ -102,12 +106,14 @@ echo ""
 
 # Get Monero daemon address
 DEFAULT_MONERO_DAEMON="185.191.116.142:18081"
-read -r -p "Monero daemon address [$DEFAULT_MONERO_DAEMON]: " MONERO_DAEMON_ADDRESS
+echo -n "Monero daemon address [$DEFAULT_MONERO_DAEMON]: "
+read -r MONERO_DAEMON_ADDRESS </dev/tty
 MONERO_DAEMON_ADDRESS="${MONERO_DAEMON_ADDRESS:-$DEFAULT_MONERO_DAEMON}"
 
 # Get Monero daemon login
 DEFAULT_MONERO_LOGIN="zerofi:zerofi"
-read -r -p "Monero daemon login (user:pass) [$DEFAULT_MONERO_LOGIN]: " MONERO_DAEMON_LOGIN
+echo -n "Monero daemon login (user:pass) [$DEFAULT_MONERO_LOGIN]: "
+read -r MONERO_DAEMON_LOGIN </dev/tty
 MONERO_DAEMON_LOGIN="${MONERO_DAEMON_LOGIN:-$DEFAULT_MONERO_LOGIN}"
 
 # Generate secure password for Monero wallet
