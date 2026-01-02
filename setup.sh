@@ -261,10 +261,13 @@ chmod +x "$INSTALL_DIR/stop"
 
 cat > "$INSTALL_DIR/logs" << 'LOGSEOF'
 #!/bin/bash
-# Human-readable logs (no systemd timestamps or docker prefixes)
+# Human-readable logs focused on znode v2.2.3 only
 cd /opt/znode || exit 1
-# Stream all service logs and strip the leading "<service>-1  | " noise
-docker compose logs -f 2>&1 | sed 's/^[a-z_-]*-1  | //'
+
+# Follow only the znode service, no docker prefixes, and drop common mempool/RPC noise
+exec docker compose logs -f --no-log-prefix znode 2>&1 \
+
+  | grep -vE "(Found new pool tx|mempool|pending tx|Calling RPC method|HTTP \\[)"
 LOGSEOF
 chmod +x "$INSTALL_DIR/logs"
 
