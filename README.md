@@ -9,14 +9,22 @@ curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/setup.sh | su
 ```
 
 The script will:
-1. Install Docker (if not present)
+1. Install Docker and Docker Compose (if not present)
 2. Prompt for your Ethereum private key
 3. Prompt for RPC URL (or use default)
 4. Auto-detect your public IP
 5. Generate secure Monero wallet password
-6. Create systemd service
-7. Configure firewall
-8. Start ZNode
+6. Download docker-compose.yml
+7. Create systemd service
+8. Configure firewall
+9. Start all services
+
+## Services
+
+ZNode runs 3 containers:
+- **monero-wallet-rpc** - Monero wallet management
+- **znode** - Main node service
+- **cluster-aggregator** - Cluster management
 
 ## Commands
 
@@ -32,13 +40,17 @@ sudo journalctl -u znode -f
 
 # Check status
 sudo systemctl status znode
+
+# View container logs
+cd /opt/znode && docker compose logs -f
 ```
 
-Or use the helper scripts:
+Or use helper scripts:
 
 ```bash
 /opt/znode/start
 /opt/znode/stop
+/opt/znode/logs
 ```
 
 ## Configuration
@@ -55,7 +67,8 @@ sudo systemctl restart znode
 ## Update
 
 ```bash
-docker pull ghcr.io/zerofi-io/znodev2.2.3:latest
+cd /opt/znode
+docker compose pull
 sudo systemctl restart znode
 ```
 
@@ -65,17 +78,14 @@ sudo systemctl restart znode
 |------|-------------|
 | 9000 | P2P network |
 | 3002 | Bridge API |
-| 3003 | Cluster aggregator |
-| 4000 | Additional service |
-| 18083 | Monero wallet RPC |
+| 3003 | Health/metrics (localhost only) |
+| 4000 | Cluster aggregator API |
 
 ## Data
 
-Data is persisted in Docker volume `znode-data`:
-
-- Wallet data: `/data/monero-wallets`
-- Bridge data: `/data/.znode-bridge`
-- State files: `/data/.cluster-state.json`, `/data/.tx-state.json`
+Data is persisted in Docker volumes:
+- `znode-data` - Wallets, state files, bridge data
+- `znode-tmp` - Temporary files
 
 ## Uninstall
 
@@ -84,7 +94,6 @@ sudo systemctl stop znode
 sudo systemctl disable znode
 sudo rm /etc/systemd/system/znode.service
 sudo systemctl daemon-reload
-docker rm znode
-docker volume rm znode-data
+cd /opt/znode && docker compose down -v
 sudo rm -rf /opt/znode
 ```
