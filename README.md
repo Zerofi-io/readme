@@ -1,5 +1,16 @@
 # ZNode v2.2.3
 
+## Minimum VPS Requirements
+
+Per node (one VPS):
+- **CPU:** 2 vCPU (x86_64)
+- **RAM:** 4 GB (8 GB recommended)
+- **Storage:** 40 GB SSD (80 GB recommended)
+- **OS:** Ubuntu 22.04 (or Debian with systemd)
+- **Network:** Stable public IPv4, 100 Mbps+ recommended
+
+> **Note:** One node per VPS. Running multiple nodes on a single machine is not supported.
+
 ## Quick Start
 
 Run the setup script:
