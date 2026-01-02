@@ -16,7 +16,7 @@ Per node (one VPS):
 Run the setup script:
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/setup.sh)
+curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/setup.sh | sudo bash
 ```
 
 The script will:
@@ -36,7 +36,7 @@ The script will:
 To update an existing installation:
 
 ```bash
-sudo bash <(curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/update.sh)
+curl -fsSL https://raw.githubusercontent.com/Zerofi-io/readme/main/update.sh | sudo bash
 ```
 
 This preserves your configuration and only updates the Docker images.
