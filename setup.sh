@@ -307,10 +307,9 @@ cat > "$INSTALL_DIR/logs" << 'LOGSEOF'
 # Human-readable logs focused on znode v2.2.3 only
 cd /opt/znode || exit 1
 
-# Follow only the znode service, no docker prefixes, and drop common mempool/RPC noise
+# Follow only the znode service, no docker prefixes, and drop common mempool/RPC + p2p discovery noise
 exec docker compose logs -f --no-log-prefix znode 2>&1 \
-
-  | grep -vE "(Found new pool tx|mempool|pending tx|Calling RPC method|HTTP \\[)"
+  | grep --line-buffered -vE "(Found new pool tx|mempool|pending tx|Calling RPC method|HTTP \\[|\\[p2p-daemon\\].*\\[Discovery\\] Bootstrap peer|\\[p2p-daemon\\].*\\[Discovery\\] Failed to connect|\\[p2p-daemon\\].*\\[Discovery\\] Scheduled redial.*failed|\\[p2p-daemon\\].*Failed to connect to bootstrap peer|^\\[p2p-daemon\\][[:space:]]+\\* \\[/ip|\\[p2p-daemon\\].*(dial backoff|dial to self attempted))"
 LOGSEOF
 chmod +x "$INSTALL_DIR/logs"
 

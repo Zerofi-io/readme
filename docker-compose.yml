@@ -1,6 +1,6 @@
 services:
   monero-wallet-rpc:
-    image: ghcr.io/zerofi-io/znodev2.2.3:latest
+    image: ghcr.io/zerofi-io/znodev2.2.3:v2.2.3
     command: ["monero-wallet-rpc-entrypoint"]
     working_dir: /data
     env_file:
@@ -21,7 +21,7 @@ services:
       retries: 30
 
   znode:
-    image: ghcr.io/zerofi-io/znodev2.2.3:latest
+    image: ghcr.io/zerofi-io/znodev2.2.3:v2.2.3
     command: ["node", "dist/node.js"]
     env_file:
       - .env
@@ -45,7 +45,7 @@ services:
     restart: unless-stopped
 
   cluster-aggregator:
-    image: ghcr.io/zerofi-io/znodev2.2.3:latest
+    image: ghcr.io/zerofi-io/znodev2.2.3:v2.2.3
     command: ["node", "dist/cluster-aggregator.js"]
     env_file:
       - .env
