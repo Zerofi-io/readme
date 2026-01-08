@@ -155,7 +155,7 @@ echo "=== Monero Daemon Configuration ==="
 echo ""
 
 # Get Monero daemon address
-DEFAULT_MONERO_DAEMON="185.191.116.142:18081"
+DEFAULT_MONERO_DAEMON="185.191.116.142:18089"
 echo -n "Monero daemon address [$DEFAULT_MONERO_DAEMON]: "
 read -r MONERO_DAEMON_ADDRESS </dev/tty
 MONERO_DAEMON_ADDRESS="${MONERO_DAEMON_ADDRESS:-$DEFAULT_MONERO_DAEMON}"
