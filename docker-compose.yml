@@ -31,7 +31,6 @@ services:
       MONERO_WALLET_DIR: /data/monero-wallets
       MONERO_RPC_URL: http://monero-wallet-rpc:18083
       BRIDGE_API_BIND_IP: 0.0.0.0
-      HEALTH_API_BIND_IP: 0.0.0.0
     volumes:
       - znode-data:/data
       - znode-tmp:/tmp
@@ -55,6 +54,7 @@ services:
       BRIDGE_DATA_DIR: /data/.znode-bridge
       CLUSTER_AGG_P2P_SOCKET_PATH: /tmp/znode-p2p.sock
       ZNODE_API_BASES: http://znode:3002
+      CLUSTER_AGG_ALLOW_PRIVATE_NODES: "1"
     volumes:
       - znode-data:/data
       - znode-tmp:/tmp
