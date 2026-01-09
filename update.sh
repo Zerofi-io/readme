@@ -42,6 +42,13 @@ sed -i \
   -e "s/^BRIDGE_ADDR=.*/BRIDGE_ADDR=$BRIDGE_ADDR/" \
   "$INSTALL_DIR/.env"
 
+echo "Updating Monero daemon probe timeout..."
+if grep -q 'MONERO_DAEMON_PROBE_TIMEOUT_MS' "$INSTALL_DIR/.env"; then
+  sed -i 's/^MONERO_DAEMON_PROBE_TIMEOUT_MS=.*/MONERO_DAEMON_PROBE_TIMEOUT_MS=15000/' "$INSTALL_DIR/.env"
+else
+  echo 'MONERO_DAEMON_PROBE_TIMEOUT_MS=15000' >> "$INSTALL_DIR/.env"
+fi
+
 echo "Pulling latest images..."
 docker compose pull
 
