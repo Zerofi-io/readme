@@ -133,20 +133,43 @@ echo -n "Ethereum Sepolia RPC URL [$DEFAULT_RPC_URL]: "
 read -r RPC_URL </dev/tty
 RPC_URL="${RPC_URL:-$DEFAULT_RPC_URL}"
 
-# Get Public IP
-DEFAULT_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || echo "")
-if [ -n "$DEFAULT_IP" ]; then
-  echo -n "Public IP address [$DEFAULT_IP]: "
-  read -r PUBLIC_IP </dev/tty
-  PUBLIC_IP="${PUBLIC_IP:-$DEFAULT_IP}"
-else
+# Get Public IPv4 (required)
+DEFAULT_IPV4=$( (curl -4 -s ifconfig.me 2>/dev/null || curl -4 -s icanhazip.com 2>/dev/null || echo "") | tr -d '\r\n' )
+
+is_valid_ipv4() {
+  local ip="${1:-}"
+  [[ "$ip" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || return 1
+  local o1 o2 o3 o4
+  IFS='.' read -r o1 o2 o3 o4 <<<"$ip"
+  for o in "$o1" "$o2" "$o3" "$o4"; do
+    [[ "$o" =~ ^[0-9]+$ ]] || return 1
+    ((o >= 0 && o <= 255)) || return 1
+  done
+  return 0
+}
+
+if is_valid_ipv4 "$DEFAULT_IPV4"; then
   while true; do
-    echo -n "Public IP address: "
+    echo -n "Public IPv4 address [$DEFAULT_IPV4]: "
     read -r PUBLIC_IP </dev/tty
-    if [ -n "$PUBLIC_IP" ]; then
+    PUBLIC_IP="${PUBLIC_IP:-$DEFAULT_IPV4}"
+    if is_valid_ipv4 "$PUBLIC_IP"; then
       break
     fi
-    echo "  ERROR: Public IP is required."
+    echo "  ERROR: Please enter a valid public IPv4 address."
+  done
+else
+  while true; do
+    echo -n "Public IPv4 address: "
+    read -r PUBLIC_IP </dev/tty
+    if [ -z "$PUBLIC_IP" ]; then
+      echo "  ERROR: Public IPv4 is required."
+      continue
+    fi
+    if is_valid_ipv4 "$PUBLIC_IP"; then
+      break
+    fi
+    echo "  ERROR: Please enter a valid public IPv4 address."
   done
 fi
 
