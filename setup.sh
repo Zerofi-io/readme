@@ -150,22 +150,6 @@ else
   done
 fi
 
-echo ""
-echo "=== Monero Daemon Configuration ==="
-echo ""
-
-# Get Monero daemon address
-DEFAULT_MONERO_DAEMON="185.191.116.142:18089"
-echo -n "Monero daemon address [$DEFAULT_MONERO_DAEMON]: "
-read -r MONERO_DAEMON_ADDRESS </dev/tty
-MONERO_DAEMON_ADDRESS="${MONERO_DAEMON_ADDRESS:-$DEFAULT_MONERO_DAEMON}"
-
-# Get Monero daemon login
-DEFAULT_MONERO_LOGIN="zerofi:zerofi"
-echo -n "Monero daemon login (user:pass) [$DEFAULT_MONERO_LOGIN]: "
-read -r MONERO_DAEMON_LOGIN </dev/tty
-MONERO_DAEMON_LOGIN="${MONERO_DAEMON_LOGIN:-$DEFAULT_MONERO_LOGIN}"
-
 # Generate secure password for Monero wallet
 MONERO_WALLET_PASSWORD=$(openssl rand -hex 32)
 
@@ -199,9 +183,8 @@ CHAIN_NAME=sepolia
 
 # === Monero Configuration ===
 MONERO_WALLET_PASSWORD=${MONERO_WALLET_PASSWORD}
-MONERO_DAEMON_ADDRESS=${MONERO_DAEMON_ADDRESS}
-MONERO_DAEMON_LOGIN=${MONERO_DAEMON_LOGIN}
-MONERO_TRUST_DAEMON=0
+MONERO_DAEMON_ADDRESS=monerod:18081
+MONERO_TRUST_DAEMON=1
 MONERO_DAEMON_PROBE_TIMEOUT_MS=15000
 
 # === P2P Configuration ===
