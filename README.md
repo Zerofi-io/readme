@@ -4,7 +4,7 @@
 
 Per node (one VPS):
 - **CPU:** 2 vCPU (x86_64)
-- **RAM:** 4 GB (8 GB recommended)
+- **RAM:** 8 GB
 - **Storage:** 150 GB SSD (includes ~100GB for local Monero blockchain)
 - **OS:** Ubuntu 22.04 (or Debian with systemd)
 - **Network:** Stable public IPv4, 100 Mbps+ recommended
