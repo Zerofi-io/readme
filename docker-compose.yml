@@ -31,6 +31,7 @@ services:
       MONERO_WALLET_DIR: /data/monero-wallets
       MONERO_RPC_URL: http://monero-wallet-rpc:18083
       BRIDGE_API_BIND_IP: 0.0.0.0
+      HEALTH_INFO_DISCLOSURE: minimal
     volumes:
       - znode-data:/data
       - znode-tmp:/tmp
@@ -38,7 +39,7 @@ services:
     ports:
       - "9000:9000"
       - "3002:3002"
-      - "127.0.0.1:3003:3003"
+      - "3003:3003"
     depends_on:
       monero-wallet-rpc:
         condition: service_healthy

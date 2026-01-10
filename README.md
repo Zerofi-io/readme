@@ -92,7 +92,7 @@ sudo systemctl restart znode
 |------|-------------|
 | 9000 | P2P network |
 | 3002 | Bridge API |
-| 3003 | Health/metrics (localhost only) |
+| 3003 | Health/metrics |
 | 4000 | Cluster aggregator API |
 
 ## Data
