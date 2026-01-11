@@ -133,8 +133,9 @@ echo -n "Ethereum Sepolia RPC URL [$DEFAULT_RPC_URL]: "
 read -r RPC_URL </dev/tty
 RPC_URL="${RPC_URL:-$DEFAULT_RPC_URL}"
 
-# Get Public IPv4 (required)
+# Get Public IP (IPv4 or IPv6) (required)
 DEFAULT_IPV4=$( (curl -4 -s ifconfig.me 2>/dev/null || curl -4 -s icanhazip.com 2>/dev/null || echo "") | tr -d '\r\n' )
+DEFAULT_IPV6=$( (curl -6 -s ifconfig.me 2>/dev/null || curl -6 -s icanhazip.com 2>/dev/null || echo "") | tr -d '\r\n' )
 
 is_valid_ipv4() {
   local ip="${1:-}"
@@ -148,29 +149,39 @@ is_valid_ipv4() {
   return 0
 }
 
+is_valid_ipv6() {
+  local ip="${1:-}"
+  python3 -c "import ipaddress,sys; ipaddress.IPv6Address(sys.argv[1])" "$ip" >/dev/null 2>&1
+}
+
+DEFAULT_PUBLIC_IP=""
 if is_valid_ipv4 "$DEFAULT_IPV4"; then
-  while true; do
-    echo -n "Public IPv4 address [$DEFAULT_IPV4]: "
-    read -r PUBLIC_IP </dev/tty
-    PUBLIC_IP="${PUBLIC_IP:-$DEFAULT_IPV4}"
-    if is_valid_ipv4 "$PUBLIC_IP"; then
-      break
-    fi
-    echo "  ERROR: Please enter a valid public IPv4 address."
-  done
-else
-  while true; do
-    echo -n "Public IPv4 address: "
-    read -r PUBLIC_IP </dev/tty
-    if [ -z "$PUBLIC_IP" ]; then
-      echo "  ERROR: Public IPv4 is required."
-      continue
-    fi
-    if is_valid_ipv4 "$PUBLIC_IP"; then
-      break
-    fi
-    echo "  ERROR: Please enter a valid public IPv4 address."
-  done
+  DEFAULT_PUBLIC_IP="$DEFAULT_IPV4"
+elif is_valid_ipv6 "$DEFAULT_IPV6"; then
+  DEFAULT_PUBLIC_IP="$DEFAULT_IPV6"
+fi
+
+while true; do
+  if [ -n "$DEFAULT_PUBLIC_IP" ]; then
+    echo -n "Public IP address (IPv4 or IPv6) [$DEFAULT_PUBLIC_IP]: "
+  else
+    echo -n "Public IP address (IPv4 or IPv6): "
+  fi
+  read -r PUBLIC_IP </dev/tty
+  PUBLIC_IP="${PUBLIC_IP:-$DEFAULT_PUBLIC_IP}"
+  if [ -z "$PUBLIC_IP" ]; then
+    echo "  ERROR: Public IP is required."
+    continue
+  fi
+  if is_valid_ipv4 "$PUBLIC_IP" || is_valid_ipv6 "$PUBLIC_IP"; then
+    break
+  fi
+  echo "  ERROR: Please enter a valid public IPv4 or IPv6 address."
+done
+
+BRIDGE_API_BIND_IP="0.0.0.0"
+if is_valid_ipv6 "$PUBLIC_IP"; then
+  BRIDGE_API_BIND_IP="::"
 fi
 
 # Ask about Monero daemon
@@ -277,7 +288,7 @@ BRIDGE_ENABLED=1
 SWEEP_ENABLED=0
 BRIDGE_API_ENABLED=1
 BRIDGE_API_PORT=3002
-BRIDGE_API_BIND_IP=0.0.0.0
+BRIDGE_API_BIND_IP=${BRIDGE_API_BIND_IP}
 BRIDGE_API_AUTH_TOKEN=${BRIDGE_API_AUTH_TOKEN}
 BRIDGE_API_TLS_ENABLED=0
 
