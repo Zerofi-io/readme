@@ -173,6 +173,56 @@ else
   done
 fi
 
+# Ask about Monero daemon
+echo ""
+echo "=== Monero Daemon Configuration ==="
+echo ""
+echo "Choose your Monero daemon setup:"
+echo "  1) Run local Monero daemon (recommended, requires ~50GB disk space)"
+echo "  2) Use external Monero daemon (saves resources if you have one)"
+echo ""
+while true; do
+  echo -n "Enter choice [1]: "
+  read -r DAEMON_CHOICE </dev/tty
+  DAEMON_CHOICE="${DAEMON_CHOICE:-1}"
+  if [ "$DAEMON_CHOICE" = "1" ] || [ "$DAEMON_CHOICE" = "2" ]; then
+    break
+  fi
+  echo "  ERROR: Please enter 1 or 2."
+done
+
+USE_LOCAL_MONEROD="1"
+MONERO_DAEMON_ADDRESS="monerod:18081"
+MONERO_TRUST_DAEMON="1"
+
+if [ "$DAEMON_CHOICE" = "2" ]; then
+  USE_LOCAL_MONEROD="0"
+  echo ""
+  while true; do
+    echo -n "External Monero daemon address (host:port): "
+    read -r MONERO_DAEMON_ADDRESS </dev/tty
+    if [ -z "$MONERO_DAEMON_ADDRESS" ]; then
+      echo "  ERROR: Daemon address is required."
+      continue
+    fi
+    # Basic validation: should contain a colon for host:port
+    if [[ ! "$MONERO_DAEMON_ADDRESS" =~ : ]]; then
+      echo "  ERROR: Please enter address in host:port format (e.g., node.example.com:18081)"
+      continue
+    fi
+    break
+  done
+  echo ""
+  echo "Do you trust this external daemon? (trusted daemons skip some verification)"
+  echo -n "Trust daemon? [y/N]: "
+  read -r TRUST_CHOICE </dev/tty
+  if [[ "$TRUST_CHOICE" =~ ^[Yy] ]]; then
+    MONERO_TRUST_DAEMON="1"
+  else
+    MONERO_TRUST_DAEMON="0"
+  fi
+fi
+
 # Generate secure password for Monero wallet
 MONERO_WALLET_PASSWORD=$(openssl rand -hex 32)
 
@@ -206,9 +256,10 @@ CHAIN_NAME=sepolia
 
 # === Monero Configuration ===
 MONERO_WALLET_PASSWORD=${MONERO_WALLET_PASSWORD}
-MONERO_DAEMON_ADDRESS=monerod:18081
-MONERO_TRUST_DAEMON=1
+MONERO_DAEMON_ADDRESS=${MONERO_DAEMON_ADDRESS}
+MONERO_TRUST_DAEMON=${MONERO_TRUST_DAEMON}
 MONERO_DAEMON_PROBE_TIMEOUT_MS=15000
+USE_LOCAL_MONEROD=${USE_LOCAL_MONEROD}
 
 # === P2P Configuration ===
 P2P_IMPL=libp2p
@@ -267,9 +318,13 @@ echo "  Downloaded docker-compose.yml"
 # Pull images
 echo ""
 echo "=== Pulling Docker Images ==="
-docker compose pull
+if [ "$USE_LOCAL_MONEROD" = "1" ]; then
+  docker compose --profile local-daemon pull
+else
+  docker compose pull
+fi
 
-# Create systemd service
+# Create systemd service with conditional profile
 echo ""
 echo "=== Creating Systemd Service ==="
 cat > /etc/systemd/system/znode.service << SERVICEEOF
@@ -283,6 +338,8 @@ Type=simple
 Restart=always
 RestartSec=10
 WorkingDirectory=$INSTALL_DIR
+ExecStartPre=/bin/bash -c 'if grep -q "^USE_LOCAL_MONEROD=1" $INSTALL_DIR/.env 2>/dev/null; then echo "COMPOSE_PROFILES=local-daemon" > $INSTALL_DIR/.compose-profile; else echo "" > $INSTALL_DIR/.compose-profile; fi'
+EnvironmentFile=-$INSTALL_DIR/.compose-profile
 ExecStart=/usr/bin/docker compose up
 ExecStop=/usr/bin/docker compose down
 
@@ -316,7 +373,7 @@ cd /opt/znode || exit 1
 
 # Follow only the znode service, no docker prefixes, and drop common mempool/RPC + p2p discovery noise
 exec docker compose logs -f --no-log-prefix znode 2>&1 \
-  | grep --line-buffered -vE "(Found new pool tx|mempool|pending tx|Calling RPC method|HTTP \\[|\\[p2p-daemon\\].*\\[Discovery\\] Bootstrap peer|\\[p2p-daemon\\].*\\[Discovery\\] Failed to connect|\\[p2p-daemon\\].*\\[Discovery\\] Scheduled redial.*failed|\\[p2p-daemon\\].*Failed to connect to bootstrap peer|^\\[p2p-daemon\\][[:space:]]+\\* \\[/ip|\\[p2p-daemon\\].*(dial backoff|dial to self attempted))"
+  | grep --line-buffered -vE "(Found new pool tx|mempool|pending tx|Calling RPC method|HTTP \[|\[p2p-daemon\].*\[Discovery\] Bootstrap peer|\[p2p-daemon\].*\[Discovery\] Failed to connect|\[p2p-daemon\].*\[Discovery\] Scheduled redial.*failed|\[p2p-daemon\].*Failed to connect to bootstrap peer|^\[p2p-daemon\][[:space:]]+\* \[/ip|\[p2p-daemon\].*(dial backoff|dial to self attempted))"
 LOGSEOF
 chmod +x "$INSTALL_DIR/logs"
 
@@ -348,10 +405,24 @@ if systemctl is-active --quiet znode; then
   echo "  Setup Complete!"
   echo "============================================"
   echo ""
-  echo "ZNode is now running with 3 services:"
-  echo "  - monero-wallet-rpc (Monero wallet management)"
-  echo "  - znode (Main node service)"
-  echo "  - cluster-aggregator (Cluster coordination)"
+  if [ "$USE_LOCAL_MONEROD" = "1" ]; then
+    echo "ZNode is now running with 4 services:"
+    echo "  - monerod (Local Monero daemon - syncing blockchain)"
+    echo "  - monero-wallet-rpc (Monero wallet management)"
+    echo "  - znode (Main node service)"
+    echo "  - cluster-aggregator (Cluster coordination)"
+    echo ""
+    echo "NOTE: The local Monero daemon needs to sync the blockchain."
+    echo "      This may take several hours. Check sync status with:"
+    echo "      docker compose logs -f monerod"
+  else
+    echo "ZNode is now running with 3 services:"
+    echo "  - monero-wallet-rpc (Monero wallet management)"
+    echo "  - znode (Main node service)"
+    echo "  - cluster-aggregator (Cluster coordination)"
+    echo ""
+    echo "Using external Monero daemon: $MONERO_DAEMON_ADDRESS"
+  fi
   echo ""
   echo "Commands:"
   echo "  Start:   $INSTALL_DIR/start"

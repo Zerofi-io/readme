@@ -27,6 +27,16 @@ fi
 
 cd "$INSTALL_DIR"
 
+# Check if using local monerod
+USE_LOCAL_MONEROD="0"
+if grep -q "^USE_LOCAL_MONEROD=1" "$INSTALL_DIR/.env" 2>/dev/null; then
+  USE_LOCAL_MONEROD="1"
+elif grep -q "^MONERO_DAEMON_ADDRESS=monerod:18081" "$INSTALL_DIR/.env" 2>/dev/null; then
+  # Legacy detection for existing installs without USE_LOCAL_MONEROD
+  USE_LOCAL_MONEROD="1"
+  echo "USE_LOCAL_MONEROD=1" >> "$INSTALL_DIR/.env"
+fi
+
 echo "Stopping ZNode..."
 systemctl stop znode 2>/dev/null || true
 
@@ -49,8 +59,35 @@ else
   echo 'MONERO_DAEMON_PROBE_TIMEOUT_MS=15000' >> "$INSTALL_DIR/.env"
 fi
 
+# Update systemd service to use conditional profile
+echo "Updating systemd service..."
+cat > /etc/systemd/system/znode.service << SERVICEEOF
+[Unit]
+Description=ZeroFi Node v2.2.3
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+WorkingDirectory=$INSTALL_DIR
+ExecStartPre=/bin/bash -c 'if grep -q "^USE_LOCAL_MONEROD=1" $INSTALL_DIR/.env 2>/dev/null; then echo "COMPOSE_PROFILES=local-daemon" > $INSTALL_DIR/.compose-profile; else echo "" > $INSTALL_DIR/.compose-profile; fi'
+EnvironmentFile=-$INSTALL_DIR/.compose-profile
+ExecStart=/usr/bin/docker compose up
+ExecStop=/usr/bin/docker compose down
+
+[Install]
+WantedBy=multi-user.target
+SERVICEEOF
+systemctl daemon-reload
+
 echo "Pulling latest images..."
-docker compose pull
+if [ "$USE_LOCAL_MONEROD" = "1" ]; then
+  docker compose --profile local-daemon pull
+else
+  docker compose pull
+fi
 
 echo "Starting ZNode..."
 systemctl start znode
@@ -59,5 +96,11 @@ echo ""
 echo "============================================"
 echo "  Update Complete!"
 echo "============================================"
+echo ""
+if [ "$USE_LOCAL_MONEROD" = "1" ]; then
+  echo "Running with local Monero daemon."
+else
+  echo "Running with external Monero daemon."
+fi
 echo ""
 echo "View logs: sudo journalctl -u znode -f"
