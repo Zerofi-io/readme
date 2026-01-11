@@ -237,8 +237,8 @@ fi
 # Generate secure password for Monero wallet
 MONERO_WALLET_PASSWORD=$(openssl rand -hex 32)
 
-# Generate auth token
-BRIDGE_API_AUTH_TOKEN=$(openssl rand -hex 32)
+# Shared network-wide auth token (deterministic - all nodes produce the same value)
+BRIDGE_API_AUTH_TOKEN=$(printf "zerofi-bridge-network-auth-v1" | sha256sum | cut -d" " -f1)
 
 # Set install directory
 INSTALL_DIR="/opt/znode"
