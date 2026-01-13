@@ -1,0 +1,99 @@
+services:
+  monerod:
+    profiles: [local-daemon]
+    image: ghcr.io/sethforprivacy/simple-monerod:latest
+    command:
+      - --prune-blockchain
+      - --sync-pruned-blocks
+      - --rpc-bind-ip=0.0.0.0
+      - --rpc-bind-port=18081
+      - --confirm-external-bind
+      - --no-igd
+      - --no-zmq
+      - --out-peers=32
+      - --in-peers=64
+      - --limit-rate-up=1048576
+      - --limit-rate-down=1048576
+      - --db-sync-mode=safe:sync
+      - --max-concurrency=4
+    volumes:
+      - monerod-data:/home/monero/.bitmonero
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://127.0.0.1:18081/get_info | grep -q 'status.*OK' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  monero-wallet-rpc:
+    image: ghcr.io/zerofi-io/znodev2.2.3:v2.2.3
+    command: ["monero-wallet-rpc-entrypoint"]
+    working_dir: /data
+    env_file:
+      - .env
+    environment:
+      HOME: /data
+      BRIDGE_DATA_DIR: /data/.znode-bridge
+      MONERO_WALLET_DIR: /data/monero-wallets
+      MONERO_RPC_BIND_IP: 0.0.0.0
+      MONERO_RPC_PORT: 18083
+    volumes:
+      - znode-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18083/json_rpc -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":\"0\",\"method\":\"get_version\"}' | grep -qE '200|401'"]
+      interval: 10s
+      timeout: 3s
+      retries: 30
+
+  znode:
+    image: ghcr.io/zerofi-io/znodev2.2.3:v2.2.3
+    command: ["node", "dist/node.js"]
+    env_file:
+      - .env
+    environment:
+      HOME: /data
+      BRIDGE_DATA_DIR: /data/.znode-bridge
+      MONERO_WALLET_DIR: /data/monero-wallets
+      MONERO_RPC_URL: http://monero-wallet-rpc:18083
+      BRIDGE_API_BIND_IP: 0.0.0.0
+      HEALTH_INFO_DISCLOSURE: minimal
+    volumes:
+      - znode-data:/data
+      - znode-tmp:/tmp
+      - ./.env:/app/.env:ro
+    ports:
+      - "9000:9000"
+      - "3002:3002"
+      - "3003:3003"
+    depends_on:
+      monero-wallet-rpc:
+        condition: service_healthy
+    restart: unless-stopped
+
+  cluster-aggregator:
+    image: ghcr.io/zerofi-io/znodev2.2.3:v2.2.3
+    command: ["node", "dist/cluster-aggregator.js"]
+    env_file:
+      - .env
+    environment:
+      HOME: /data
+      BRIDGE_DATA_DIR: /data/.znode-bridge
+      CLUSTER_AGG_P2P_SOCKET_PATH: /tmp/znode-p2p.sock
+      ZNODE_API_BASES: http://znode:3002
+      CLUSTER_AGG_ALLOW_PRIVATE_NODES: "1"
+    volumes:
+      - znode-data:/data
+      - znode-tmp:/tmp
+      - ./.env:/app/.env:ro
+    ports:
+      - "4000:4000"
+    depends_on:
+      - znode
+    restart: unless-stopped
+
+volumes:
+  znode-data:
+  znode-tmp:
+  monerod-data:
