@@ -210,6 +210,20 @@ systemctl enable --now monerod-watchdog.timer
 echo "Pulling latest images..."
 docker compose pull
 
+echo "Cleaning up old ZNode images..."
+ZNODE_IMAGE="$(awk '/image:\s*ghcr\.io\/zerofi-io\/znodev/{print $2; exit}' "$INSTALL_DIR/docker-compose.yml" 2>/dev/null || true)"
+ZNODE_REPO="${ZNODE_IMAGE%:*}"
+keep_id="$(docker image inspect -f '{{.Id}}' "$ZNODE_IMAGE" 2>/dev/null || true)"
+if [ -n "$keep_id" ] && [ -n "$ZNODE_REPO" ]; then
+  docker images --format '{{.Repository}} {{.ID}}' 2>/dev/null | awk -v repo="$ZNODE_REPO" '$1==repo{print $2}' | sort -u | while read -r img; do
+    if [ -n "$img" ] && [ "$img" != "$keep_id" ]; then
+      docker rmi "$img" >/dev/null 2>&1 || true
+    fi
+  done || true
+fi
+# Also remove any dangling layers left behind by tag updates
+docker image prune -f >/dev/null 2>&1 || true
+
 echo "Starting ZNode..."
 systemctl start znode
 
